@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -31,7 +32,7 @@ var (
 	ecdsaCurve = flag.String("ecdsa-curve", "", "ECDSA curve to use to generate a key. Valid values are P224, P256, P384, P521")
 )
 
-func GenerateCert(path string) {
+func GenerateCert(path string) error {
 
 	log.Print("Warning: generating self-signed certs, DO NOT USE IN PRODUCTION!")
 	var priv interface{}
@@ -48,11 +49,11 @@ func GenerateCert(path string) {
 	case "P521":
 		priv, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	default:
-		fmt.Fprintf(os.Stderr, "Unrecognized elliptic curve: %q", *ecdsaCurve)
+		return errors.New("Unrecognized elliptic curve: " + *ecdsaCurve)
 		os.Exit(1)
 	}
 	if err != nil {
-		log.Fatalf("failed to generate private key: %s", err)
+		return err
 	}
 
 	var notBefore time.Time
@@ -61,8 +62,7 @@ func GenerateCert(path string) {
 	} else {
 		notBefore, err = time.Parse("Jan 2 15:04:05 2006", *validFrom)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to parse creation date: %s\n", err)
-			os.Exit(1)
+			return err
 		}
 	}
 
@@ -71,7 +71,7 @@ func GenerateCert(path string) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		log.Fatalf("failed to generate serial number: %s", err)
+		return err
 	}
 
 	template := x509.Certificate{
@@ -103,12 +103,12 @@ func GenerateCert(path string) {
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, publicKey(priv), priv)
 	if err != nil {
-		log.Fatalf("Failed to create certificate: %s", err)
+		return err
 	}
 
 	certOut, err := os.Create(path + "/cert.pem")
 	if err != nil {
-		log.Fatalf("failed to open cert.pem for writing: %s", err)
+		return err
 	}
 	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 	certOut.Close()
@@ -116,12 +116,12 @@ func GenerateCert(path string) {
 
 	keyOut, err := os.OpenFile(path+"/key.pem", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		log.Print("failed to open key.pem for writing:", err)
-		return
+		return err
 	}
 	pem.Encode(keyOut, pemBlockForKey(priv))
 	keyOut.Close()
 	log.Print(path, "/key.pem created\n")
+	return nil
 }
 
 // Based

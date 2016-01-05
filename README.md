@@ -29,9 +29,17 @@ func main() {
 
 	// This enables http2 support
 	http2.ConfigureServer(&srv, nil)
-
+	
 	path, _ := os.Getwd()
-	tlscert.GenerateCert(path)
+	
+	// Checking if certs already exits
+        if _, err := os.Stat(path + "cert.pem"); os.IsNotExist(err) {
+                // Generating certificates
+                err := tlscert.GenerateCert(path)
+                if err != nil {
+                        log.Fatalf("Failed generating certs:  %v", err)
+                }
+        }
 
 	// Plain text test handler
 	// Open
